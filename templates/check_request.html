@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>申请状态查询</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        
+        .nav-pills .nav-link {
+            border-radius: 10px;
+            margin-bottom: 10px;
+            padding: 12px 20px;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        }
+        
+        .form-control {
+            border-radius: 10px;
+            border: 1px solid #e1e5e9;
+            padding: 12px 15px;
+            font-size: 16px;
+            min-height: 50px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            border: none;
+            border-radius: 50px;
+            padding: 12px 30px;
+            font-weight: 600;
+            min-height: 50px;
+        }
+        
+        .request-info {
+            background: linear-gradient(135deg, #e8f4fd 0%, #d6eaf8 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .request-info h5 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .status-badge {
+            font-size: 1rem;
+            padding: 8px 15px;
+            border-radius: 50px;
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .container {
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+            
+            .btn {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            
+            .nav-pills .nav-link {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-warehouse me-2"></i>CMC空箱仓储系统
+            </a>
+            <span class="navbar-text">申请状态查询</span>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h4 class="mb-0"><i class="fas fa-search me-2"></i>查询申请状态</h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <ul class="nav nav-pills mb-4 justify-content-center" id="queryTab" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="requestId-tab" data-bs-toggle="pill" data-bs-target="#requestId" type="button" role="tab">
+                                    <i class="fas fa-ticket-alt me-2"></i>申请单号查询
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="vehicle-tab" data-bs-toggle="pill" data-bs-target="#vehicle" type="button" role="tab">
+                                    <i class="fas fa-car me-2"></i>车辆信息查询
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="queryTabContent">
+                            <!-- 申请单号查询 -->
+                            <div class="tab-pane fade show active" id="requestId" role="tabpanel">
+                                <form method="POST" action="{{ url_for('check_request') }}">
+                                    <div class="mb-3">
+                                        <label for="request_id" class="form-label">申请单号</label>
+                                        <input type="text" class="form-control" id="request_id" name="request_id" 
+                                               value="{{ request_id or '' }}" required placeholder="请输入申请单号">
+                                        <div class="form-text">申请提交后系统会生成申请单号，请妥善保管</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">查询</button>
+                                </form>
+                            </div>
+                            
+                            <!-- 车辆信息查询 -->
+                            <div class="tab-pane fade" id="vehicle" role="tabpanel">
+                                <form method="POST" action="{{ url_for('check_request') }}">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <label for="license_plate" class="form-label">车牌号码</label>
+                                            <input type="text" class="form-control" id="license_plate" name="license_plate" 
+                                                   value="{{ license_plate or '' }}" required placeholder="请输入车牌号码">
+                                        </div>
+                                        <div class="col-12">
+                                            <label for="driver_name" class="form-label">司机姓名</label>
+                                            <input type="text" class="form-control" id="driver_name" name="driver_name" 
+                                                   value="{{ driver_name or '' }}" required placeholder="请输入司机姓名">
+                                        </div>
+                                        <div class="col-12">
+                                            <button type="submit" class="btn btn-primary w-100">查询</button>
+                                            <div class="form-text mt-2">通过车牌号和司机姓名查询最近的申请</div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mt-4" role="alert">
+                                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        {% if request_info %}
+                        <div class="request-info">
+                            <h5><i class="fas fa-file-alt me-2"></i>申请信息</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>申请单号：</strong>{{ request_info.request_id }}</p>
+                                    <p><strong>申请日期：</strong>{{ request_info.request_date.strftime('%Y-%m-%d %H:%M') }}</p>
+                                    <p><strong>返空日期：</strong>{{ request_info.return_date.strftime('%Y-%m-%d') }}</p>
+                                    <p><strong>供应商：</strong>{{ request_info.supplier_code }} - {{ request_info.supplier_name }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>发货地代码：</strong>{{ request_info.mfg_code }}</p>
+                                    <p><strong>空器具类型：</strong>{{ request_info.container_type }}</p>
+                                    <p><strong>装箱数量：</strong>{{ request_info.quantity }}</p>
+                                    <p><strong>承运商：</strong>{{ request_info.carrier }}</p>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <p><strong>车辆信息：</strong>{{ request_info.vehicle_type }}</p>
+                                    <p><strong>司机姓名：</strong>{{ request_info.driver_name }}</p>
+                                    <p><strong>司机手机：</strong>{{ request_info.driver_phone }}</p>
+                                    <p><strong>车牌号码：</strong>{{ request_info.license_plate }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>申请状态：</strong>
+                                        {% if request_info.status == 'pending' %}
+                                        <span class="badge bg-warning status-badge">待审批</span>
+                                        {% elif request_info.status == 'approved' %}
+                                        <span class="badge bg-success status-badge">已批准</span>
+                                        {% elif request_info.status == 'completed' %}
+                                        <span class="badge bg-info status-badge">已完成</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-home me-2"></i>返回首页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

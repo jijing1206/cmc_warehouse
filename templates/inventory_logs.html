@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>出入库记录</h2>
+    <a href="{{ url_for('inventory') }}" class="btn btn-outline-primary">返回库存查询</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">操作类型</label>
+                <select class="form-select" name="operation_type">
+                    <option value="">全部</option>
+                    <option value="in" {% if request.args.get('operation_type') == 'in' %}selected{% endif %}>入库</option>
+                    <option value="out" {% if request.args.get('operation_type') == 'out' %}selected{% endif %}>出库</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">空器具类型</label>
+                <select class="form-select" name="container_type">
+                    <option value="">全部</option>
+                    {% for ct in container_types %}
+                    <option value="{{ ct }}" {% if request.args.get('container_type') == ct %}selected{% endif %}>{{ ct }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">开始日期</label>
+                <input type="date" class="form-control" name="date_from" 
+                       value="{{ request.args.get('date_from', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">结束日期</label>
+                <input type="date" class="form-control" name="date_to" 
+                       value="{{ request.args.get('date_to', '') }}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">供应商/发货地代码</label>
+                <input type="text" class="form-control" name="supplier" 
+                       value="{{ request.args.get('supplier', '') }}">
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">筛选</button>
+                <a href="{{ url_for('inventory_logs') }}" class="btn btn-outline-secondary">重置</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if logs %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>操作类型</th>
+                        <th>空器具类型</th>
+                        <th>数量</th>
+                        <th>供应商代码</th>
+                        <th>发货地代码</th>
+                        <th>供应商名称</th>
+                        <th>承运商</th>
+                        <th>操作员</th>
+                        <th>备注</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            {% if log.operation_type == 'in' %}
+                            <span class="badge bg-success">入库</span>
+                            {% else %}
+                            <span class="badge bg-danger">出库</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.container_type }}</td>
+                        <td>{{ log.quantity }}</td>
+                        <td>{{ log.supplier_code }}</td>
+                        <td>{{ log.mfg_code }}</td>
+                        <td>{{ log.supplier_name }}</td>
+                        <td>{{ log.carrier }}</td>
+                        <td>{{ log.operator }}</td>
+                        <td>{{ log.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <p class="text-muted">没有找到符合条件的操作记录</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统基础设置</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.2rem 1.5rem;
+        }
+        
+        .stats-card {
+            transition: transform 0.3s;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            border: none;
+            border-radius: 50px;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            border: none;
+            border-radius: 50px;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
+            border: none;
+            border-radius: 50px;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        
+        .table th {
+            background-color: #f8f9fa;
+        }
+        
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 1px solid #e1e5e9;
+            padding: 10px 15px;
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .container {
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+            
+            .card-header {
+                padding: 1rem;
+            }
+            
+            h2 {
+                font-size: 1.5rem;
+            }
+            
+            .btn {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            
+            .table-responsive {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-warehouse me-2"></i>CMC空箱仓储系统
+            </a>
+            <span class="navbar-text d-none d-md-block">系统基础设置</span>
+            <div class="navbar-nav ms-auto">
+                <a href="{{ url_for('module_logout', module='system') }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-sign-out-alt me-1"></i>退出
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <h2 class="fw-bold mb-4" style="color: #2c3e50;">
+            <i class="fas fa-cog me-2"></i>系统基础设置
+        </h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
+                        {{ message|safe }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card text-white bg-primary">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">总申请数量</h5>
+                        <h2 class="mb-0">{{ stats.total_requests }}</h2>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card stats-card text-white bg-warning">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">待处理申请</h5>
+                        <h2 class="mb-0">{{ stats.pending_requests }}</h2>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card stats-card text-white bg-info">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">今日操作记录</h5>
+                        <h2 class="mb-0">{{ stats.today_logs }}</h2>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card stats-card text-white bg-success">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">供应商数量</h5>
+                        <h2 class="mb-0">{{ stats.supplier_count }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-download me-2"></i>数据导出</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p>导出当前所有库存数据为Excel格式</p>
+                                <a href="{{ url_for('export_inventory') }}" class="btn btn-success mb-2">
+                                    <i class="fas fa-file-excel me-2"></i>导出库存数据
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <p>导出出入库操作记录为Excel格式</p>
+                                <a href="{{ url_for('export_inventory_logs') }}" class="btn btn-info mb-2">
+                                    <i class="fas fa-file-excel me-2"></i>导出出入库记录
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-plus-circle me-2"></i>添加供应商</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('add_supplier') }}">
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <input type="text" class="form-control" name="supplier_code" placeholder="供应商代码" required>
+                                </div>
+                                <div class="col-12">
+                                    <input type="text" class="form-control" name="mfg_code" placeholder="发货地代码 (MFG CODE)" required>
+                                </div>
+                                <div class="col-12">
+                                    <input type="text" class="form-control" name="supplier_name" placeholder="供应商名称" required>
+                                </div>
+                                <div class="col-12">
+                                    <select class="form-select" name="carrier" required>
+                                        <option value="">选择承运商</option>
+                                        <option value="中世">中世</option>
+                                        <option value="中邮">中邮</option>
+                                        <option value="瑞源">瑞源</option>
+                                        <option value="安吉">安吉</option>
+                                        <option value="风神">风神</option>
+                                        <option value="自送">自送</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-primary w-100">添加供应商</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-building me-2"></i>供应商管理</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if suppliers %}
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>供应商代码</th>
+                                <th>发货地代码</th>
+                                <th>供应商名称</th>
+                                <th>承运商</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for supplier in suppliers %}
+                            <tr>
+                                <td>{{ supplier.supplier_code }}</td>
+                                <td>{{ supplier.mfg_code }}</td>
+                                <td>{{ supplier.supplier_name }}</td>
+                                <td>{{ supplier.carrier }}</td>
+                                <td>{{ supplier.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editSupplierModal" 
+                                            data-id="{{ supplier.id }}" 
+                                            data-supplier-code="{{ supplier.supplier_code }}" 
+                                            data-mfg-code="{{ supplier.mfg_code }}" 
+                                            data-supplier-name="{{ supplier.supplier_name }}" 
+                                            data-carrier="{{ supplier.carrier }}">
+                                        编辑
+                                    </button>
+                                    <form method="POST" action="{{ url_for('delete_supplier', supplier_id=supplier.id) }}" class="d-inline" onsubmit="return confirm('确定要删除这个供应商吗？');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">删除</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted">暂无供应商数据</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑供应商模态框 -->
+    <div class="modal fade" id="editSupplierModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑供应商信息</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" id="editSupplierForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">供应商代码</label>
+                            <input type="text" class="form-control" name="supplier_code" id="edit_supplier_code" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">发货地代码</label>
+                            <input type="text" class="form-control" name="mfg_code" id="edit_mfg_code" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">供应商名称</label>
+                            <input type="text" class="form-control" name="supplier_name" id="edit_supplier_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">承运商</label>
+                            <select class="form-select" name="carrier" id="edit_carrier" required>
+                                <option value="中世">中世</option>
+                                <option value="中邮">中邮</option>
+                                <option value="瑞源">瑞源</option>
+                                <option value="安吉">安吉</option>
+                                <option value="风神">风神</option>
+                                <option value="自送">自送</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">保存更改</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 编辑供应商模态框数据填充
+            const editModal = document.getElementById('editSupplierModal');
+            editModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const supplierId = button.getAttribute('data-id');
+                const supplierCode = button.getAttribute('data-supplier-code');
+                const mfgCode = button.getAttribute('data-mfg-code');
+                const supplierName = button.getAttribute('data-supplier-name');
+                const carrier = button.getAttribute('data-carrier');
+                
+                document.getElementById('edit_supplier_code').value = supplierCode;
+                document.getElementById('edit_mfg_code').value = mfgCode;
+                document.getElementById('edit_supplier_name').value = supplierName;
+                document.getElementById('edit_carrier').value = carrier;
+                
+                // 更新表单action
+                document.getElementById('editSupplierForm').action = `/system/edit-supplier/${supplierId}`;
+            });
+        });
+    </script>
+</body>
+</html>
