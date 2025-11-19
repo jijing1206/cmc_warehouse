@@ -63,8 +63,8 @@ class PackingRequestItem(db.Model):
 # 模块密码配置
 MODULE_PASSWORDS = {
     'registration': 'reg123',      # 入库出库登记
-    'inventory': 'inv123',         # 库存查询统计  
-    'packing': 'pack123',          # 返空装箱申请
+    'inventory': None,             # 库存查询统计 - 去掉密码
+    'packing': None,               # 返空装箱申请 - 去掉密码
     'approval': 'app123',          # 申请审批管理
     'system': 'sys123'             # 系统基础设置
 }
@@ -97,6 +97,13 @@ def module_login(module):
     if module not in MODULE_PASSWORDS:
         flash('无效的模块', 'error')
         return redirect(url_for('index'))
+    
+    # 如果模块密码为None，直接跳转到对应页面
+    if MODULE_PASSWORDS[module] is None:
+        if module == 'inventory':
+            return redirect(url_for('inventory'))
+        elif module == 'packing':
+            return redirect(url_for('packing_request'))
     
     if request.method == 'POST':
         password = request.form.get('password')
@@ -196,9 +203,8 @@ def registration():
                          container_types=container_types,
                          is_mobile=is_mobile())
 
-# 库存查询统计模块
+# 库存查询统计模块 - 去掉权限检查
 @app.route('/inventory')
-@module_required('inventory')
 def inventory():
     # 获取筛选参数
     carrier_filter = request.args.get('carrier')
@@ -269,9 +275,8 @@ def inventory():
                          carriers=carriers,
                          is_mobile=is_mobile())
 
-# 返空装箱申请模块
+# 返空装箱申请模块 - 去掉权限检查
 @app.route('/packing', methods=['GET', 'POST'])
-@module_required('packing')
 def packing_request():
     if request.method == 'POST':
         return_date = request.form.get('return_date')

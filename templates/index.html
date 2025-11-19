@@ -139,24 +139,26 @@
                 </div>
             </div>
             
+            <!-- 库存查询统计模块 - 直接链接到模块页面 -->
             <div class="col-md-4">
                 <div class="card module-card text-white" style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);">
                     <div class="card-body text-center">
                         <div class="module-icon"><i class="fas fa-chart-bar"></i></div>
                         <h4>库存查询统计</h4>
                         <p class="mb-3">查看当前库存，导出Excel报表</p>
-                        <a href="{{ url_for('module_login', module='inventory') }}" class="btn btn-light btn-module">进入</a>
+                        <a href="{{ url_for('inventory') }}" class="btn btn-light btn-module">进入</a>
                     </div>
                 </div>
             </div>
             
+            <!-- 返空装箱申请模块 - 直接链接到模块页面 -->
             <div class="col-md-4">
                 <div class="card module-card text-white" style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);">
                     <div class="card-body text-center">
                         <div class="module-icon"><i class="fas fa-truck-loading"></i></div>
                         <h4>返空装箱申请</h4>
                         <p class="mb-3">提交返空装箱需求申请</p>
-                        <a href="{{ url_for('module_login', module='packing') }}" class="btn btn-light btn-module">进入</a>
+                        <a href="{{ url_for('packing_request') }}" class="btn btn-light btn-module">进入</a>
                     </div>
                 </div>
             </div>
