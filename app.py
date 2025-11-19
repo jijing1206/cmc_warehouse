@@ -1,9 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_file
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-import pandas as pd
-from io import BytesIO
+from io import BytesIO, StringIO
 import functools
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+import csv
+import pandas as pd
+import traceback
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'cmc-warehouse-2024'
@@ -12,6 +17,39 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 db = SQLAlchemy(app)
+
+# 配置更详细的日志
+if not os.path.exists('logs'):
+    os.mkdir('logs')
+
+# 设置日志级别
+logging.basicConfig(level=logging.DEBUG)
+
+# 文件处理器
+file_handler = RotatingFileHandler(
+    'logs/cmc_system.log', 
+    maxBytes=10240, 
+    backupCount=10,
+    encoding='utf-8'
+)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+file_handler.setLevel(logging.DEBUG)
+
+# 控制台处理器
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+))
+
+# 添加到app logger
+app.logger.addHandler(file_handler)
+app.logger.addHandler(console_handler)
+app.logger.setLevel(logging.DEBUG)
+
+app.logger.info('CMC系统启动 - 调试模式')
 
 # 数据库模型
 class SupplierInfo(db.Model):
@@ -526,76 +564,10 @@ def delete_supplier(supplier_id):
     flash('供应商信息删除成功！', 'success')
     return redirect(url_for('system_settings'))
 
-# 导出库存为Excel
-@app.route('/system/export-inventory')
+# 出入库记录查询页面
+@app.route('/system/inventory-logs')
 @module_required('system')
-def export_inventory():
-    # 获取所有库存数据
-    inventory_data = db.session.query(
-        InventoryLog.supplier_code,
-        InventoryLog.mfg_code,
-        InventoryLog.supplier_name,
-        InventoryLog.carrier,
-        InventoryLog.container_type,
-        db.func.sum(
-            db.case(
-                (InventoryLog.operation_type == 'in', InventoryLog.quantity),
-                else_=0
-            )
-        ).label('total_in'),
-        db.func.sum(
-            db.case(
-                (InventoryLog.operation_type == 'out', InventoryLog.quantity),
-                else_=0
-            )
-        ).label('total_out')
-    ).group_by(
-        InventoryLog.supplier_code,
-        InventoryLog.mfg_code,
-        InventoryLog.supplier_name, 
-        InventoryLog.carrier, 
-        InventoryLog.container_type
-    ).all()
-    
-    # 转换为DataFrame
-    data = []
-    for item in inventory_data:
-        current_stock = item.total_in - item.total_out
-        if current_stock > 0:
-            data.append({
-                '供应商代码': item.supplier_code,
-                '发货地代码': item.mfg_code,
-                '供应商名称': item.supplier_name,
-                '承运商': item.carrier,
-                '空器具类型': item.container_type,
-                '当前库存': current_stock
-            })
-    
-    if not data:
-        flash('没有可导出的库存数据', 'error')
-        return redirect(url_for('system_settings'))
-    
-    df = pd.DataFrame(data)
-    
-    # 创建Excel文件
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='库存数据', index=False)
-    
-    output.seek(0)
-    
-    # 生成文件名
-    filename = f'CMC库存数据_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
-    
-    return output.getvalue(), 200, {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': f'attachment; filename={filename}'
-    }
-
-# 导出入库记录
-@app.route('/system/export-inventory-logs')
-@module_required('system')
-def export_inventory_logs():
+def inventory_logs():
     # 获取筛选参数
     operation_type = request.args.get('operation_type')
     container_type = request.args.get('container_type')
@@ -613,7 +585,6 @@ def export_inventory_logs():
     if date_from:
         query = query.filter(InventoryLog.timestamp >= datetime.strptime(date_from, '%Y-%m-%d'))
     if date_to:
-        # 结束日期包含一整天
         end_date = datetime.strptime(date_to, '%Y-%m-%d')
         end_date = end_date.replace(hour=23, minute=59, second=59)
         query = query.filter(InventoryLog.timestamp <= end_date)
@@ -626,42 +597,290 @@ def export_inventory_logs():
     
     logs = query.order_by(InventoryLog.timestamp.desc()).all()
     
-    # 转换为DataFrame
-    data = []
-    for log in logs:
-        data.append({
-            '时间': log.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            '操作类型': '入库' if log.operation_type == 'in' else '出库',
-            '空器具类型': log.container_type,
-            '数量': log.quantity,
-            '供应商代码': log.supplier_code,
-            '发货地代码': log.mfg_code,
-            '供应商名称': log.supplier_name,
-            '承运商': log.carrier,
-            '操作员': log.operator,
-            '备注': log.notes or ''
-        })
+    return render_template('inventory_logs.html',
+                         logs=logs,
+                         container_types=['塑箱', '铁料架', '桶', '围板箱'],
+                         is_mobile=is_mobile())
+
+# 编辑出入库记录
+@app.route('/system/edit-inventory-log/<int:log_id>', methods=['GET', 'POST'])
+@module_required('system')
+def edit_inventory_log(log_id):
+    log = InventoryLog.query.get_or_404(log_id)
     
-    if not data:
-        flash('没有可导出的操作记录', 'error')
+    if request.method == 'POST':
+        # 更新记录
+        log.operation_type = request.form.get('operation_type')
+        log.container_type = request.form.get('container_type')
+        log.quantity = int(request.form.get('quantity'))
+        log.mfg_code = request.form.get('mfg_code')
+        log.notes = request.form.get('notes')
+        
+        # 更新供应商信息
+        supplier = SupplierInfo.query.filter_by(mfg_code=log.mfg_code).first()
+        if supplier:
+            log.supplier_code = supplier.supplier_code
+            log.supplier_name = supplier.supplier_name
+            log.carrier = supplier.carrier
+        
+        db.session.commit()
+        flash('记录更新成功！', 'success')
+        return redirect(url_for('inventory_logs'))
+    
+    return render_template('edit_inventory_log.html',
+                         log=log,
+                         container_types=['塑箱', '铁料架', '桶', '围板箱'],
+                         is_mobile=is_mobile())
+
+# 删除出入库记录
+@app.route('/system/delete-inventory-log/<int:log_id>', methods=['POST'])
+@module_required('system')
+def delete_inventory_log(log_id):
+    log = InventoryLog.query.get_or_404(log_id)
+    db.session.delete(log)
+    db.session.commit()
+    flash('记录删除成功！', 'success')
+    return redirect(url_for('inventory_logs'))
+
+# 导出库存数据 - 使用send_file修复版
+@app.route('/system/export-inventory')
+@module_required('system')
+def export_inventory():
+    try:
+        app.logger.info("开始导出库存数据到Excel")
+        
+        # 获取所有库存数据
+        inventory_data = db.session.query(
+            InventoryLog.supplier_code,
+            InventoryLog.mfg_code,
+            InventoryLog.supplier_name,
+            InventoryLog.carrier,
+            InventoryLog.container_type,
+            db.func.sum(
+                db.case(
+                    (InventoryLog.operation_type == 'in', InventoryLog.quantity),
+                    else_=0
+                )
+            ).label('total_in'),
+            db.func.sum(
+                db.case(
+                    (InventoryLog.operation_type == 'out', InventoryLog.quantity),
+                    else_=0
+                )
+            ).label('total_out')
+        ).group_by(
+            InventoryLog.supplier_code,
+            InventoryLog.mfg_code,
+            InventoryLog.supplier_name, 
+            InventoryLog.carrier, 
+            InventoryLog.container_type
+        ).all()
+
+        # 转换为DataFrame
+        data = []
+        for item in inventory_data:
+            current_stock = item.total_in - item.total_out
+            if current_stock > 0:
+                data.append({
+                    '供应商代码': item.supplier_code,
+                    '发货地代码': item.mfg_code,
+                    '供应商名称': item.supplier_name,
+                    '承运商': item.carrier,
+                    '空器具类型': item.container_type,
+                    '当前库存': current_stock
+                })
+
+        if not data:
+            flash('没有可导出的库存数据', 'error')
+            return redirect(url_for('system_settings'))
+        
+        app.logger.info(f"准备导出 {len(data)} 条库存记录到Excel")
+        
+        # 创建DataFrame
+        df = pd.DataFrame(data)
+        
+        # 创建Excel文件
+        output = BytesIO()
+        
+        # 使用openpyxl引擎
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='库存数据', index=False)
+            
+            # 自动调整列宽
+            worksheet = writer.sheets['库存数据']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        
+        output.seek(0)
+        
+        # 生成文件名
+        filename = f'CMC库存数据_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+        
+        # 使用 send_file 返回文件
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        error_msg = f"导出库存数据错误: {str(e)}"
+        app.logger.error(error_msg)
+        app.logger.error(traceback.format_exc())
+        flash(f'导出数据时发生错误，请查看日志', 'error')
         return redirect(url_for('system_settings'))
-    
-    df = pd.DataFrame(data)
-    
-    # 创建Excel文件
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='出入库记录', index=False)
-    
-    output.seek(0)
-    
-    # 生成文件名
-    filename = f'CMC出入库记录_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
-    
-    return output.getvalue(), 200, {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': f'attachment; filename={filename}'
-    }
+
+# 导出出入库记录 - 使用send_file修复版
+@app.route('/system/export-inventory-logs')
+@module_required('system')
+def export_inventory_logs():
+    try:
+        app.logger.info("开始导出出入库记录到Excel")
+        
+        # 获取筛选参数
+        operation_type = request.args.get('operation_type')
+        container_type = request.args.get('container_type')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        supplier = request.args.get('supplier')
+        
+        # 构建查询
+        query = InventoryLog.query
+        
+        if operation_type:
+            query = query.filter(InventoryLog.operation_type == operation_type)
+        if container_type:
+            query = query.filter(InventoryLog.container_type == container_type)
+        if date_from:
+            query = query.filter(InventoryLog.timestamp >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            end_date = datetime.strptime(date_to, '%Y-%m-%d')
+            end_date = end_date.replace(hour=23, minute=59, second=59)
+            query = query.filter(InventoryLog.timestamp <= end_date)
+        if supplier:
+            query = query.filter(
+                (InventoryLog.supplier_code.contains(supplier)) |
+                (InventoryLog.mfg_code.contains(supplier)) |
+                (InventoryLog.supplier_name.contains(supplier))
+            )
+        
+        logs = query.order_by(InventoryLog.timestamp.desc()).all()
+        
+        # 转换为DataFrame
+        data = []
+        for log in logs:
+            data.append({
+                '时间': log.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                '操作类型': '入库' if log.operation_type == 'in' else '出库',
+                '空器具类型': log.container_type,
+                '数量': log.quantity,
+                '供应商代码': log.supplier_code,
+                '发货地代码': log.mfg_code,
+                '供应商名称': log.supplier_name,
+                '承运商': log.carrier,
+                '操作员': log.operator,
+                '备注': log.notes or ''
+            })
+        
+        if not data:
+            flash('没有可导出的操作记录', 'error')
+            return redirect(url_for('system_settings'))
+        
+        app.logger.info(f"准备导出 {len(data)} 条操作记录到Excel")
+        
+        # 创建DataFrame
+        df = pd.DataFrame(data)
+        
+        # 创建Excel文件
+        output = BytesIO()
+        
+        # 使用openpyxl引擎
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='出入库记录', index=False)
+            
+            # 自动调整列宽
+            worksheet = writer.sheets['出入库记录']
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        
+        output.seek(0)
+        
+        # 生成文件名
+        filename = f'CMC出入库记录_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+        
+        # 使用 send_file 返回文件
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        error_msg = f"导出出入库记录错误: {str(e)}"
+        app.logger.error(error_msg)
+        app.logger.error(traceback.format_exc())
+        flash(f'导出数据时发生错误，请查看日志', 'error')
+        return redirect(url_for('system_settings'))
+
+# 导出功能测试路由
+@app.route('/system/test-export')
+def test_export():
+    """测试导出功能的基本组件"""
+    try:
+        # 测试pandas
+        import pandas as pd
+        test_data = [{'测试列1': '值1', '测试列2': '值2'}]
+        df = pd.DataFrame(test_data)
+        
+        # 测试openpyxl
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "测试"
+        ws['A1'] = "测试成功"
+        wb.save('test_excel.xlsx')
+        
+        # 测试BytesIO
+        from io import BytesIO
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        
+        return jsonify({
+            'status': 'success',
+            'message': '所有导出组件正常工作',
+            'pandas': '正常',
+            'openpyxl': '正常',
+            'bytesio': '正常'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 # 获取特定MFG代码的库存（用于前端验证）
 @app.route('/api/stock/<mfg_code>/<container_type>')
