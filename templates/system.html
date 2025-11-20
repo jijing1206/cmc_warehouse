@@ -300,6 +300,38 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- 数据清理卡片 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-trash-alt me-2"></i>数据清理</h5>
+            </div>
+            <div class="card-body">
+                <p>清理过期的出入库记录和申请记录</p>
+                <form method="POST" action="{{ url_for('cleanup_old_records') }}" onsubmit="return confirm('确定要删除过期记录吗？此操作不可恢复！');">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">删除早于</label>
+                            <input type="date" class="form-control" name="cutoff_date" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">记录类型</label>
+                            <select class="form-select" name="record_type" required>
+                                <option value="all">所有记录</option>
+                                <option value="inventory_logs">出入库记录</option>
+                                <option value="packing_requests">装箱申请记录</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-danger w-100">清理过期记录</button>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">
+                        注意：此操作将永久删除指定日期之前的所有记录，请谨慎操作！
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- 编辑供应商模态框 -->

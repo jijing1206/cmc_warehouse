@@ -100,24 +100,46 @@
         <div class="card mb-4">
             <div class="card-body">
                 <h5 class="card-title"><i class="fas fa-filter me-2"></i>筛选条件</h5>
-                <div class="btn-group" role="group">
-                    <a href="{{ url_for('approval', status='pending') }}" 
+                
+                <!-- 状态筛选按钮组 -->
+                <div class="btn-group mb-3" role="group">
+                    <a href="{{ url_for('approval', status='pending', search=request.args.get('search', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', '')) }}" 
                        class="btn btn-outline-warning {% if status_filter == 'pending' %}active{% endif %}">
                        <i class="fas fa-clock me-1"></i>待审批
                     </a>
-                    <a href="{{ url_for('approval', status='approved') }}" 
+                    <a href="{{ url_for('approval', status='approved', search=request.args.get('search', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', '')) }}" 
                        class="btn btn-outline-success {% if status_filter == 'approved' %}active{% endif %}">
                        <i class="fas fa-check me-1"></i>已批准
                     </a>
-                    <a href="{{ url_for('approval', status='completed') }}" 
+                    <a href="{{ url_for('approval', status='completed', search=request.args.get('search', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', '')) }}" 
                        class="btn btn-outline-info {% if status_filter == 'completed' %}active{% endif %}">
                        <i class="fas fa-flag-checkered me-1"></i>已完成
                     </a>
-                    <a href="{{ url_for('approval', status='all') }}" 
+                    <a href="{{ url_for('approval', status='all', search=request.args.get('search', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', '')) }}" 
                        class="btn btn-outline-primary {% if status_filter == 'all' %}active{% endif %}">
                        <i class="fas fa-list me-1"></i>全部
                     </a>
                 </div>
+                
+                <!-- 搜索表单 -->
+                <form method="GET" class="row g-3">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" name="search" placeholder="车牌/发货地代码/供应商" 
+                               value="{{ request.args.get('search', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control" name="date_from" 
+                               value="{{ request.args.get('date_from', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control" name="date_to" 
+                               value="{{ request.args.get('date_to', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary w-100">搜索</button>
+                    </div>
+                </form>
             </div>
         </div>
 

@@ -85,6 +85,7 @@ class PackingRequest(db.Model):
     license_plate = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='pending')
     request_id = db.Column(db.String(20), unique=True)
+    notes = db.Column(db.Text)  # 新增备注字段
 
 class PackingRequestItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -93,7 +94,7 @@ class PackingRequestItem(db.Model):
     mfg_code = db.Column(db.String(50), nullable=False)
     supplier_name = db.Column(db.String(100), nullable=False)
     container_type = db.Column(db.String(50), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False)
+    quantity = db.Column(db.Integer, nullable=True, default=0)  # 改为可选，默认0
     
     # 关联关系
     packing_request = db.relationship('PackingRequest', backref=db.backref('items', lazy=True))
@@ -304,11 +305,19 @@ def inventory():
                 'current_stock': current_stock
             })
     
+    # 获取急需返空的前5名供应商（按库存量降序）
+    urgent_return = []
+    if inventory_results:
+        # 按库存量排序
+        sorted_inventory = sorted(inventory_results, key=lambda x: x['current_stock'], reverse=True)
+        urgent_return = sorted_inventory[:5]  # 取前5名
+    
     container_types = ['塑箱', '铁料架', '桶', '围板箱']
     carriers = ['中世', '中邮', '瑞源', '安吉', '风神', '自送']
     
     return render_template('inventory.html', 
                          inventory=inventory_results,
+                         urgent_return=urgent_return,  # 新增参数
                          container_types=container_types,
                          carriers=carriers,
                          is_mobile=is_mobile())
@@ -323,11 +332,11 @@ def packing_request():
         driver_phone = request.form.get('driver_phone')
         license_plate = request.form.get('license_plate')
         carrier = request.form.get('carrier')
+        notes = request.form.get('notes')  # 新增备注字段
         
         # 获取动态添加的物品数据
         mfg_codes = request.form.getlist('mfg_code[]')
         container_types = request.form.getlist('container_type[]')
-        quantities = request.form.getlist('quantity[]')
         
         if not all([return_date, vehicle_type, driver_name, driver_phone, license_plate, carrier]):
             flash('请填写所有必填字段', 'error')
@@ -336,21 +345,6 @@ def packing_request():
         if not mfg_codes:
             flash('请至少添加一个物品', 'error')
             return redirect(url_for('packing_request'))
-        
-        # 验证库存数量
-        for i, mfg_code in enumerate(mfg_codes):
-            container_type = container_types[i]
-            quantity = int(quantities[i])
-            
-            supplier = SupplierInfo.query.filter_by(mfg_code=mfg_code).first()
-            if not supplier:
-                flash(f'未找到发货地代码 {mfg_code} 对应的供应商信息', 'error')
-                return redirect(url_for('packing_request'))
-            
-            current_stock = get_mfg_inventory(mfg_code, container_type)
-            if quantity > current_stock:
-                flash(f'申请数量({quantity})超过当前库存({current_stock})，请调整数量', 'error')
-                return redirect(url_for('packing_request'))
         
         # 生成申请单号
         request_id = f"REQ{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -363,7 +357,8 @@ def packing_request():
             driver_name=driver_name,
             driver_phone=driver_phone,
             license_plate=license_plate,
-            request_id=request_id
+            request_id=request_id,
+            notes=notes  # 新增备注
         )
         
         db.session.add(packing_request)
@@ -372,7 +367,6 @@ def packing_request():
         # 创建物品明细
         for i, mfg_code in enumerate(mfg_codes):
             container_type = container_types[i]
-            quantity = int(quantities[i])
             
             supplier = SupplierInfo.query.filter_by(mfg_code=mfg_code).first()
             
@@ -382,7 +376,7 @@ def packing_request():
                 mfg_code=mfg_code,
                 supplier_name=supplier.supplier_name,
                 container_type=container_type,
-                quantity=quantity
+                quantity=0  # 设为0，因为不再需要数量
             )
             db.session.add(request_item)
         
@@ -432,11 +426,32 @@ def check_request():
 @module_required('approval')
 def approval():
     status_filter = request.args.get('status', 'pending')
+    search_term = request.args.get('search', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
     
-    query = PackingRequest.query
+    # 构建查询 - 关联 PackingRequestItem 表
+    query = PackingRequest.query.join(PackingRequestItem)
     
     if status_filter != 'all':
         query = query.filter(PackingRequest.status == status_filter)
+    
+    # 添加搜索条件
+    if search_term:
+        query = query.filter(
+            (PackingRequest.license_plate.contains(search_term)) |
+            (PackingRequestItem.mfg_code.contains(search_term)) |
+            (PackingRequestItem.supplier_name.contains(search_term)) |
+            (PackingRequestItem.supplier_code.contains(search_term))
+        )
+    
+    # 添加日期筛选
+    if date_from:
+        query = query.filter(PackingRequest.request_date >= datetime.strptime(date_from, '%Y-%m-%d'))
+    if date_to:
+        end_date = datetime.strptime(date_to, '%Y-%m-%d')
+        end_date = end_date.replace(hour=23, minute=59, second=59)
+        query = query.filter(PackingRequest.request_date <= end_date)
     
     packing_requests = query.order_by(PackingRequest.request_date.desc()).all()
     
@@ -641,6 +656,46 @@ def delete_inventory_log(log_id):
     db.session.commit()
     flash('记录删除成功！', 'success')
     return redirect(url_for('inventory_logs'))
+
+# 清理过期记录
+@app.route('/system/cleanup-records', methods=['POST'])
+@module_required('system')
+def cleanup_old_records():
+    cutoff_date = request.form.get('cutoff_date')
+    record_type = request.form.get('record_type')
+    
+    if not cutoff_date:
+        flash('请选择截止日期', 'error')
+        return redirect(url_for('system_settings'))
+    
+    cutoff_datetime = datetime.strptime(cutoff_date, '%Y-%m-%d')
+    deleted_count = 0
+    
+    try:
+        if record_type in ['all', 'inventory_logs']:
+            # 删除出入库记录
+            logs_deleted = InventoryLog.query.filter(InventoryLog.timestamp < cutoff_datetime).delete()
+            deleted_count += logs_deleted
+        
+        if record_type in ['all', 'packing_requests']:
+            # 删除装箱申请记录（先删除关联的子记录）
+            old_requests = PackingRequest.query.filter(PackingRequest.request_date < cutoff_datetime).all()
+            for request in old_requests:
+                # 删除关联的PackingRequestItem
+                PackingRequestItem.query.filter_by(request_id=request.id).delete()
+                # 删除主记录
+                db.session.delete(request)
+                deleted_count += 1
+        
+        db.session.commit()
+        flash(f'成功删除 {deleted_count} 条过期记录', 'success')
+    
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"清理记录错误: {str(e)}")
+        flash('清理记录时发生错误', 'error')
+    
+    return redirect(url_for('system_settings'))
 
 # 导出库存数据 - 使用send_file修复版
 @app.route('/system/export-inventory')

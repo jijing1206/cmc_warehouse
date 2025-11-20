@@ -191,21 +191,21 @@
                             <input type="text" class="form-control" name="license_plate" required>
                         </div>
                         
-                        <!-- 动态物品添加部分 -->
+                        <!-- 动态物品添加部分 - 修改后的版本 -->
                         <div class="col-12">
                             <div class="card mb-3">
                                 <div class="card-header bg-light">
-                                    <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>装箱物品清单</h6>
+                                    <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>返空物品清单</h6>
                                 </div>
                                 <div class="card-body">
                                     <div id="items-container">
                                         <!-- 第一个物品行 -->
                                         <div class="item-row row g-3 mb-3">
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label required">发货地代码</label>
                                                 <input type="text" class="form-control mfg-code" name="mfg_code[]" required placeholder="请输入发货地代码">
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label required">空器具类型</label>
                                                 <select class="form-select container-type" name="container_type[]" required>
                                                     <option value="">请选择</option>
@@ -213,11 +213,6 @@
                                                     <option value="{{ ct }}">{{ ct }}</option>
                                                     {% endfor %}
                                                 </select>
-                                            </div>
-                                            <div class="col-md-3">
-                                                <label class="form-label required">数量</label>
-                                                <input type="number" class="form-control quantity" name="quantity[]" min="1" required>
-                                                <small class="form-text text-muted">当前库存: <span class="current-stock">0</span></small>
                                             </div>
                                             <div class="col-md-2 d-flex align-items-end">
                                                 <button type="button" class="btn btn-danger btn-sm remove-item" style="display: none;">
@@ -232,6 +227,13 @@
                                     </button>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- 备注说明 -->
+                        <div class="col-12">
+                            <label class="form-label">备注说明</label>
+                            <textarea class="form-control" name="notes" rows="3" placeholder="请填写返空供应商名称、器具类型及其他说明信息"></textarea>
+                            <div class="form-text">请详细填写返空供应商名称、器具类型等信息，以便我们更好地处理您的申请</div>
                         </div>
                         
                         <div class="col-12 mt-4">
@@ -276,8 +278,6 @@
                 // 清空新行的输入值
                 newRow.querySelector('.mfg-code').value = '';
                 newRow.querySelector('.container-type').value = '';
-                newRow.querySelector('.quantity').value = '';
-                newRow.querySelector('.current-stock').textContent = '0';
                 
                 // 显示删除按钮
                 newRow.querySelector('.remove-item').style.display = 'block';
@@ -292,19 +292,7 @@
             function bindRowEvents(row) {
                 const mfgCodeInput = row.querySelector('.mfg-code');
                 const containerTypeSelect = row.querySelector('.container-type');
-                const quantityInput = row.querySelector('.quantity');
-                const currentStockSpan = row.querySelector('.current-stock');
                 const removeBtn = row.querySelector('.remove-item');
-                
-                // MFG代码失去焦点事件
-                mfgCodeInput.addEventListener('blur', function() {
-                    checkStockForRow(row);
-                });
-                
-                // 容器类型变化事件
-                containerTypeSelect.addEventListener('change', function() {
-                    checkStockForRow(row);
-                });
                 
                 // 删除按钮事件
                 removeBtn.addEventListener('click', function() {
@@ -312,47 +300,33 @@
                 });
             }
 
-            // 检查单行库存
-            function checkStockForRow(row) {
-                const mfgCode = row.querySelector('.mfg-code').value;
-                const containerType = row.querySelector('.container-type').value;
-                const currentStockSpan = row.querySelector('.current-stock');
-                
-                if (mfgCode && containerType) {
-                    fetch(`/api/stock/${mfgCode}/${containerType}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            currentStockSpan.textContent = data.current_stock;
-                            row.querySelector('.quantity').max = data.current_stock;
-                        })
-                        .catch(error => {
-                            console.error('Error checking stock:', error);
-                        });
-                }
-            }
-
             // 初始绑定第一行事件
             bindRowEvents(document.querySelector('.item-row'));
 
-            // 表单提交前验证数量
+            // 表单提交前验证
             document.getElementById('packingForm').addEventListener('submit', function(e) {
-                let hasError = false;
+                // 验证是否有至少一个物品
                 const itemRows = document.querySelectorAll('.item-row');
+                if (itemRows.length === 0) {
+                    e.preventDefault();
+                    alert('请至少添加一个返空物品');
+                    return;
+                }
                 
+                // 验证每个物品是否填写完整
+                let hasError = false;
                 itemRows.forEach(row => {
-                    const quantity = parseInt(row.querySelector('.quantity').value);
-                    const currentStock = parseInt(row.querySelector('.current-stock').textContent);
                     const mfgCode = row.querySelector('.mfg-code').value;
+                    const containerType = row.querySelector('.container-type').value;
                     
-                    if (quantity > currentStock) {
-                        e.preventDefault();
-                        alert(`发货地代码 ${mfgCode} 的申请数量(${quantity})超过当前库存(${currentStock})，请调整数量`);
+                    if (!mfgCode || !containerType) {
                         hasError = true;
                     }
                 });
                 
                 if (hasError) {
                     e.preventDefault();
+                    alert('请确保所有物品的发货地代码和空器具类型都已填写完整');
                 }
             });
         });
