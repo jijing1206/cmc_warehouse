@@ -1,0 +1,22 @@
+# 排除数据库相关（关键！防止本地数据库上传覆盖服务器数据）
+instance/
+*.db
+*.sqlite3
+
+# 排除Python缓存文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 排除系统/编辑器临时文件
+.DS_Store
+.vscode/
+.idea/
+*.log
+*.zip
+*.rar
+
+# 排除虚拟环境（如果有）
+venv/
+env/

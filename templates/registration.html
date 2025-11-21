@@ -162,7 +162,11 @@
                         
                         <div class="col-12 col-md-6">
                             <label class="form-label required">数量</label>
-                            <input type="number" class="form-control" name="quantity" min="1" required placeholder="请输入数量">
+                            <input type="number" class="form-control" name="quantity" min="1" required placeholder="请输入数量" id="quantityInput">
+                            <div class="form-text">
+                                <span id="stockInfo">当前库存: 正在加载...</span>
+                                <span id="stockWarning" class="text-danger" style="display: none;"> (出库数量不能超过当前库存)</span>
+                            </div>
                         </div>
                         
                         <div class="col-12 col-md-6">
@@ -212,6 +216,11 @@
             const supplierNameSpan = document.getElementById('supplierName');
             const carrierInfoSpan = document.getElementById('carrierInfo');
             const submitBtn = document.getElementById('submitBtn');
+            const containerTypeSelect = document.querySelector('select[name="container_type"]');
+            const quantityInput = document.getElementById('quantityInput');
+            const stockInfoSpan = document.getElementById('stockInfo');
+            const stockWarningSpan = document.getElementById('stockWarning');
+            const operationTypeSelect = document.querySelector('select[name="operation_type"]');
             
             // 当MFG代码输入框失去焦点时，获取供应商信息
             mfgCodeInput.addEventListener('blur', function() {
@@ -240,6 +249,56 @@
                 } else {
                     supplierInfoDiv.style.display = 'none';
                     submitBtn.disabled = true;
+                }
+                
+                // 同时更新库存信息
+                updateStockInfo();
+            });
+            
+            // 更新库存信息
+            function updateStockInfo() {
+                const mfgCode = mfgCodeInput.value.trim();
+                const containerType = containerTypeSelect.value;
+                const operationType = operationTypeSelect.value;
+                
+                if (mfgCode && containerType) {
+                    fetch(`/api/stock/${mfgCode}/${containerType}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            stockInfoSpan.textContent = `当前库存: ${data.current_stock}`;
+                            
+                            // 如果是出库操作，显示警告并设置最大数量
+                            if (operationType === 'out') {
+                                stockWarningSpan.style.display = 'inline';
+                                quantityInput.max = data.current_stock;
+                            } else {
+                                stockWarningSpan.style.display = 'none';
+                                quantityInput.removeAttribute('max');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error checking stock:', error);
+                            stockInfoSpan.textContent = '当前库存: 获取失败';
+                        });
+                } else {
+                    stockInfoSpan.textContent = '当前库存: 请输入发货地代码并选择空器具类型';
+                    stockWarningSpan.style.display = 'none';
+                }
+            }
+            
+            // 当空器具类型或操作类型变化时更新库存信息
+            containerTypeSelect.addEventListener('change', updateStockInfo);
+            operationTypeSelect.addEventListener('change', updateStockInfo);
+            
+            // 表单提交前验证
+            document.getElementById('registrationForm').addEventListener('submit', function(e) {
+                const operationType = operationTypeSelect.value;
+                const quantity = parseInt(quantityInput.value);
+                const maxQuantity = parseInt(quantityInput.max);
+                
+                if (operationType === 'out' && quantity > maxQuantity) {
+                    e.preventDefault();
+                    alert(`出库数量(${quantity})超过当前库存(${maxQuantity})，请调整数量`);
                 }
             });
         });

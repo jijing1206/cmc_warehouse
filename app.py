@@ -85,7 +85,7 @@ class PackingRequest(db.Model):
     license_plate = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='pending')
     request_id = db.Column(db.String(20), unique=True)
-    notes = db.Column(db.Text)  # 新增备注字段
+    notes = db.Column(db.Text)  # 确保有这个字段
 
 class PackingRequestItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -216,11 +216,28 @@ def registration():
             flash('未找到该发货地代码对应的供应商信息，请检查代码或联系管理员', 'error')
             return redirect(url_for('registration'))
         
+        # 验证数量
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                flash('数量必须大于0', 'error')
+                return redirect(url_for('registration'))
+        except ValueError:
+            flash('数量必须是有效数字', 'error')
+            return redirect(url_for('registration'))
+        
+        # 如果是出库操作，检查库存是否足够
+        if operation_type == 'out':
+            current_stock = get_mfg_inventory(mfg_code, container_type)
+            if quantity > current_stock:
+                flash(f'出库数量({quantity})超过当前库存({current_stock})，请调整数量', 'error')
+                return redirect(url_for('registration'))
+        
         # 创建库存记录
         inventory_log = InventoryLog(
             operation_type=operation_type,
             container_type=container_type,
-            quantity=int(quantity),
+            quantity=quantity,
             supplier_code=supplier.supplier_code,
             mfg_code=mfg_code,
             supplier_name=supplier.supplier_name,
@@ -326,64 +343,80 @@ def inventory():
 @app.route('/packing', methods=['GET', 'POST'])
 def packing_request():
     if request.method == 'POST':
-        return_date = request.form.get('return_date')
-        vehicle_type = request.form.get('vehicle_type')
-        driver_name = request.form.get('driver_name')
-        driver_phone = request.form.get('driver_phone')
-        license_plate = request.form.get('license_plate')
-        carrier = request.form.get('carrier')
-        notes = request.form.get('notes')  # 新增备注字段
-        
-        # 获取动态添加的物品数据
-        mfg_codes = request.form.getlist('mfg_code[]')
-        container_types = request.form.getlist('container_type[]')
-        
-        if not all([return_date, vehicle_type, driver_name, driver_phone, license_plate, carrier]):
-            flash('请填写所有必填字段', 'error')
-            return redirect(url_for('packing_request'))
-        
-        if not mfg_codes:
-            flash('请至少添加一个物品', 'error')
-            return redirect(url_for('packing_request'))
-        
-        # 生成申请单号
-        request_id = f"REQ{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        
-        # 创建装箱需求主表
-        packing_request = PackingRequest(
-            return_date=datetime.strptime(return_date, '%Y-%m-%d').date(),
-            carrier=carrier,
-            vehicle_type=vehicle_type,
-            driver_name=driver_name,
-            driver_phone=driver_phone,
-            license_plate=license_plate,
-            request_id=request_id,
-            notes=notes  # 新增备注
-        )
-        
-        db.session.add(packing_request)
-        db.session.flush()  # 获取主表ID
-        
-        # 创建物品明细
-        for i, mfg_code in enumerate(mfg_codes):
-            container_type = container_types[i]
+        try:
+            return_date = request.form.get('return_date')
+            vehicle_type = request.form.get('vehicle_type')
+            driver_name = request.form.get('driver_name')
+            driver_phone = request.form.get('driver_phone')
+            license_plate = request.form.get('license_plate')
+            carrier = request.form.get('carrier')
+            notes = request.form.get('notes')  # 获取备注信息
             
-            supplier = SupplierInfo.query.filter_by(mfg_code=mfg_code).first()
+            # 获取动态添加的物品数据
+            mfg_codes = request.form.getlist('mfg_code[]')
+            container_types = request.form.getlist('container_type[]')
             
-            request_item = PackingRequestItem(
-                request_id=packing_request.id,
-                supplier_code=supplier.supplier_code,
-                mfg_code=mfg_code,
-                supplier_name=supplier.supplier_name,
-                container_type=container_type,
-                quantity=0  # 设为0，因为不再需要数量
+            # 验证必填字段
+            if not all([return_date, vehicle_type, driver_name, driver_phone, license_plate, carrier]):
+                flash('请填写所有必填字段', 'error')
+                return redirect(url_for('packing_request'))
+            
+            if not mfg_codes:
+                flash('请至少添加一个物品', 'error')
+                return redirect(url_for('packing_request'))
+            
+            # 验证发货地代码是否存在
+            for mfg_code in mfg_codes:
+                supplier = SupplierInfo.query.filter_by(mfg_code=mfg_code).first()
+                if not supplier:
+                    flash(f'未找到发货地代码 {mfg_code} 对应的供应商信息', 'error')
+                    return redirect(url_for('packing_request'))
+            
+            # 生成申请单号
+            request_id = f"REQ{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            
+            # 创建装箱需求主表
+            packing_request = PackingRequest(
+                return_date=datetime.strptime(return_date, '%Y-%m-%d').date(),
+                carrier=carrier,
+                vehicle_type=vehicle_type,
+                driver_name=driver_name,
+                driver_phone=driver_phone,
+                license_plate=license_plate,
+                request_id=request_id,
+                notes=notes  # 保存备注信息
             )
-            db.session.add(request_item)
-        
-        db.session.commit()
-        
-        flash(f'装箱需求提交成功！申请单号：<strong>{request_id}</strong>，请妥善保存以便查询', 'success')
-        return redirect(url_for('packing_request'))
+            
+            db.session.add(packing_request)
+            db.session.flush()  # 获取主表ID
+            
+            # 创建物品明细
+            for i, mfg_code in enumerate(mfg_codes):
+                container_type = container_types[i]
+                
+                supplier = SupplierInfo.query.filter_by(mfg_code=mfg_code).first()
+                
+                request_item = PackingRequestItem(
+                    request_id=packing_request.id,
+                    supplier_code=supplier.supplier_code,
+                    mfg_code=mfg_code,
+                    supplier_name=supplier.supplier_name,
+                    container_type=container_type,
+                    quantity=0  # 设为0，因为不再需要数量
+                )
+                db.session.add(request_item)
+            
+            db.session.commit()
+            
+            flash(f'装箱需求提交成功！申请单号：<strong>{request_id}</strong>，请妥善保存以便查询', 'success')
+            return redirect(url_for('packing_request'))
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"提交返空装箱申请错误: {str(e)}")
+            app.logger.error(traceback.format_exc())
+            flash('提交申请时发生错误，请查看日志或联系管理员', 'error')
+            return redirect(url_for('packing_request'))
     
     container_types = ['塑箱', '铁料架', '桶', '围板箱']
     carriers = ['中世', '中邮', '瑞源', '安吉', '风神', '自送']
@@ -958,21 +991,28 @@ def get_stock(mfg_code, container_type):
 
 # 辅助函数：获取特定MFG代码的库存
 def get_mfg_inventory(mfg_code, container_type):
-    # 计算入库总量
-    in_total = db.session.query(db.func.sum(InventoryLog.quantity)).filter(
-        InventoryLog.mfg_code == mfg_code,
-        InventoryLog.container_type == container_type,
-        InventoryLog.operation_type == 'in'
-    ).scalar() or 0
-    
-    # 计算出库总量
-    out_total = db.session.query(db.func.sum(InventoryLog.quantity)).filter(
-        InventoryLog.mfg_code == mfg_code,
-        InventoryLog.container_type == container_type,
-        InventoryLog.operation_type == 'out'
-    ).scalar() or 0
-    
-    return in_total - out_total
+    """
+    获取特定MFG代码和空器具类型的当前库存
+    """
+    try:
+        # 计算入库总量
+        in_total = db.session.query(db.func.sum(InventoryLog.quantity)).filter(
+            InventoryLog.mfg_code == mfg_code,
+            InventoryLog.container_type == container_type,
+            InventoryLog.operation_type == 'in'
+        ).scalar() or 0
+        
+        # 计算出库总量
+        out_total = db.session.query(db.func.sum(InventoryLog.quantity)).filter(
+            InventoryLog.mfg_code == mfg_code,
+            InventoryLog.container_type == container_type,
+            InventoryLog.operation_type == 'out'
+        ).scalar() or 0
+        
+        return in_total - out_total
+    except Exception as e:
+        app.logger.error(f"计算库存错误: {str(e)}")
+        return 0
 
 # 初始化供应商数据
 def init_supplier_data():

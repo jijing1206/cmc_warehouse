@@ -117,3 +117,36 @@ FROM packing_request JOIN packing_request_item ON packing_request.id = packing_r
 WHERE packing_request.status = ? ORDER BY packing_request.request_date DESC]
 [parameters: ('pending',)]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-11-20 09:43:09,715 INFO: CMC系统启动 - 调试模式 [in C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py:52]
+2025-11-20 15:47:25,034 INFO: CMC系统启动 - 调试模式 [in C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py:52]
+2025-11-20 15:47:45,759 INFO: CMC系统启动 - 调试模式 [in C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py:52]
+2025-11-20 15:48:27,740 ERROR: Exception on /packing [POST] [in C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py:1414]
+Traceback (most recent call last):
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py", line 375, in packing_request
+    supplier_code=supplier.supplier_code,
+                  ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'supplier_code'
+2025-11-20 16:42:04,240 INFO: CMC系统启动 - 调试模式 [in C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py:52]
+2025-11-20 16:42:51,183 ERROR: Exception on /packing [POST] [in C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py:1414]
+Traceback (most recent call last):
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Jing.ji\AppData\Local\Programs\Python\Python313\Lib\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py", line 375, in packing_request
+    # 生成申请单号
+AttributeError: 'NoneType' object has no attribute 'supplier_code'
