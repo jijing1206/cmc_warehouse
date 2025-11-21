@@ -150,3 +150,4 @@ Traceback (most recent call last):
   File "C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py", line 375, in packing_request
     # 生成申请单号
 AttributeError: 'NoneType' object has no attribute 'supplier_code'
+2025-11-21 13:24:23,572 INFO: CMC系统启动 - 调试模式 [in C:\Users\Jing.ji\Desktop\cmc_warehouse\app.py:52]
